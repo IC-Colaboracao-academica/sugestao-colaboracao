@@ -17,6 +17,45 @@
 </head>
 
 <body style="background: lightgrey">
+  <!-- Filter Controls -->
+  <div style="position: absolute; top: 10px; left: 10px; z-index: 1000; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-family: Arial, sans-serif; max-width: 450px;">
+    <h3 style="margin: 0 0 10px 0;">Filtros</h3>
+    
+    <div style="margin-bottom: 10px;">
+      <label for="nameFilter">Filtrar pelo nome:</label>
+      <input type="text" id="nameFilter" placeholder="Digite o nome..." style="width: 200px; margin-left: 5px;">
+    </div>
+    
+    <div style="margin-bottom: 10px;">
+      <label for="colorFilter">Filtrar pela área:</label>
+      <select id="colorFilter" style="margin-left: 5px; width: 150px;">
+        <option value="">Todas as áreas</option>
+        <option value="#999933">Letras</option>
+        <option value="#330000">Física</option>
+        <option value="#00cc99">Pedagogia</option>
+        <option value="#cc9999">Gestão</option>
+        <option value="#ffccff">Informática</option>
+        <option value="#990000">Biologia</option>
+        <!--option value="#999999">Gray</option-->
+      </select>
+    </div>
+    
+    <div style="margin-bottom: 15px;">
+      <label for="sizeFilter">Pesquisadores com mais conexões:</label>
+      <input type="range" id="sizeFilter" min="1" max="30" value="1" style="margin-left: 5px;">
+      <span id="sizeValue">1</span>
+    </div>
+    
+    <div style="margin-bottom: 10px;">
+      <label>
+        <input type="checkbox" id="showNeighbors" checked> 
+        Mostrar vizinhos
+      </label>
+    </div>
+    
+    <button id="resetFilter" style="background: #007cba; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Reiniciar a visualização</button>
+  </div>
+  
   <div id="container" style="width: 100%; height: 1600px; background: white"></div>
   <script type="module">
     import * as sigma from 'sigma';
@@ -41,7 +80,25 @@
       graph.setNodeAttribute(node, "y", Math.random() * 600);
     });
     
-     
+    // Apply nooverlap layout to prevent node overlapping
+    // First, set random initial positions for the nooverlap algorithm to work with
+    graph.nodes().forEach((node) => {
+      graph.setNodeAttribute(node, "x", Math.random() * 800);
+      graph.setNodeAttribute(node, "y", Math.random() * 600);
+    });
+    
+    // Apply nooverlap layout
+    graphologyLibrary.layoutNoverlap.assign(graph, {
+      maxIterations: 500,
+      settings: {
+        margin: 8,
+        expansion: 1.2,
+        gridSize: 20,
+        speed: 3
+      }
+    });
+    
+    
     // Infer settings from graph & assign
     const settings = graphologyLibrary.layoutForceAtlas2.inferSettings(graph);
     graphologyLibrary.layoutForceAtlas2.assign(graph, {
@@ -108,6 +165,166 @@
         isDragging = false;
         draggedNode = null;
         s.getCamera().enable();
+      }
+    });
+
+    // === NODE FILTERING WITH ADJACENT NODES ===
+    
+    /**
+     * Gets all neighbors (adjacent nodes) of a given node
+     * @param {string} nodeId - The ID of the node to get neighbors for
+     * @returns {Set} Set of neighbor node IDs
+     */
+    function getNeighbors(nodeId) {
+      const neighbors = new Set();
+      
+      // Get all edges connected to this node
+      graph.forEachEdge(nodeId, (edge, attributes, source, target) => {
+        // Add the other node (not the current one) as a neighbor
+        if (source === nodeId) {
+          neighbors.add(target);
+        } else {
+          neighbors.add(source);
+        }
+      });
+      
+      return neighbors;
+    }
+
+    /**
+     * Applies filters to the graph, optionally showing adjacent nodes
+     * @param {string} nameFilter - Filter by node name (case-insensitive)
+     * @param {string} colorFilter - Filter by exact node color
+     * @param {number} sizeFilter - Minimum node size
+     * @param {boolean} showNeighbors - Whether to show adjacent nodes of filtered results
+     */
+    function applyFilters(nameFilter = '', colorFilter = '', sizeFilter = 1, showNeighbors = true) {
+      const nodesToShow = new Set();
+      
+      // First pass: find nodes that match the filters directly
+      graph.forEachNode((node, attributes) => {
+        let matches = true;
+        
+        // Name filter (case-insensitive partial match)
+        if (nameFilter && !attributes.label.toLowerCase().includes(nameFilter.toLowerCase())) {
+          matches = false;
+        }
+        
+        // Color filter (exact match)
+        if (colorFilter && attributes.color !== colorFilter) {
+          matches = false;
+        }
+        
+        // Size filter (minimum size)
+        if (attributes.size < sizeFilter) {
+          matches = false;
+        }
+        
+        if (matches) {
+          nodesToShow.add(node);
+        }
+      });
+      
+      // Second pass: if showNeighbors is enabled, add adjacent nodes
+      if (showNeighbors) {
+        const originalMatches = new Set(nodesToShow);
+        for (const nodeId of originalMatches) {
+          const neighbors = getNeighbors(nodeId);
+          neighbors.forEach(neighbor => nodesToShow.add(neighbor));
+        }
+      }
+      
+      // Apply visibility to all nodes
+      graph.forEachNode((node) => {
+        const shouldShow = nodesToShow.has(node);
+        graph.setNodeAttribute(node, 'hidden', !shouldShow);
+      });
+      
+      // Hide edges that connect to hidden nodes
+      graph.forEachEdge((edge, attributes, source, target) => {
+        const sourceVisible = !graph.getNodeAttribute(source, 'hidden');
+        const targetVisible = !graph.getNodeAttribute(target, 'hidden');
+        graph.setEdgeAttribute(edge, 'hidden', !(sourceVisible && targetVisible));
+      });
+      
+      // Refresh the sigma renderer
+      s.refresh();
+      
+      // Log filter results for debugging
+      console.log(`Filter applied: ${nodesToShow.size} nodes visible`);
+    }
+
+    /**
+     * Resets all filters and shows all nodes and edges
+     */
+    function resetFilters() {
+      graph.forEachNode((node) => {
+        graph.setNodeAttribute(node, 'hidden', false);
+      });
+      
+      graph.forEachEdge((edge) => {
+        graph.setEdgeAttribute(edge, 'hidden', false);
+      });
+      
+      s.refresh();
+      console.log('All filters reset - showing all nodes');
+    }
+
+    // Set up filter event listeners
+    const nameFilterInput = document.getElementById('nameFilter');
+    const colorFilterSelect = document.getElementById('colorFilter');
+    const sizeFilterInput = document.getElementById('sizeFilter');
+    const sizeValueSpan = document.getElementById('sizeValue');
+    const showNeighborsCheckbox = document.getElementById('showNeighbors');
+    const resetButton = document.getElementById('resetFilter');
+
+    // Update size display
+    sizeFilterInput.addEventListener('input', (e) => {
+      sizeValueSpan.textContent = e.target.value;
+      handleFilterChange();
+    });
+
+    // Handle filter changes
+    function handleFilterChange() {
+      const nameFilter = nameFilterInput.value.trim();
+      const colorFilter = colorFilterSelect.value;
+      const sizeFilter = parseInt(sizeFilterInput.value);
+      const showNeighbors = showNeighborsCheckbox.checked;
+      
+      // If no filters are applied, show all nodes
+      if (nameFilter === '' && colorFilter === '' && sizeFilter === 1) {
+        resetFilters();
+      } else {
+        applyFilters(nameFilter, colorFilter, sizeFilter, showNeighbors);
+      }
+    }
+
+    // Add event listeners
+    nameFilterInput.addEventListener('input', handleFilterChange);
+    colorFilterSelect.addEventListener('change', handleFilterChange);
+    showNeighborsCheckbox.addEventListener('change', handleFilterChange);
+    
+    resetButton.addEventListener('click', () => {
+      nameFilterInput.value = '';
+      colorFilterSelect.value = '';
+      sizeFilterInput.value = '1';
+      sizeValueSpan.textContent = '1';
+      showNeighborsCheckbox.checked = true;
+      resetFilters();
+    });
+
+    // Add some helpful keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Press 'R' to reset filters
+      if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.altKey) {
+        if (document.activeElement !== nameFilterInput) {
+          resetButton.click();
+        }
+      }
+      // Press 'Escape' to clear name filter
+      if (e.key === 'Escape') {
+        nameFilterInput.value = '';
+        handleFilterChange();
       }
     });
   </script>
