@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Sigma.js + Graphology.js example</title>
+  <script type="importmap">
+      {
+        "imports": {
+          "sigma": "https://cdnjs.cloudflare.com/ajax/libs/sigma.js/3.0.0/sigma.min.js",
+          "graphology": "https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js",
+          "graphologyLibrary": "https://cdn.jsdelivr.net/npm/graphology-library/dist/graphology-library.min.js",
+          "@sigma/node-image": "https://cdn.jsdelivr.net/npm/@sigma/node-image@3.0.0/+esm"
+        }
+      } 
+    </script>
+</head>
+
+<body style="background: lightgrey">
+  <div id="container" style="width: 100%; height: 1600px; background: white"></div>
+  <script type="module">
+    import * as sigma from 'sigma';
+    import 'graphology'; // has no exports, import all
+    import 'graphologyLibrary'; // has no exports, import all
+    import { NodeImageProgram } from '@sigma/node-image'; // Import image node support
+    import './js/graph.js'; // Import your local graph.js file directly
+    import { nodeList } from './js/researchesNodes.js'; // Import the nodeList array
+    import {edgeList} from './js/researchesEdges.js'; // Import the edgeList array
+
+    // Create a graphology.js graph, use random to init the graph
+    const graph = new graphology.Graph()
+    
+    // Use the createNodes function to create all nodes from the nodeList
+    createNodes(graph, nodeList);  
+    createEdges(graph, edgeList); // Use the createEdges function to create all edges from the edgeList  
+    
+    // Apply nooverlap layout to prevent node overlapping
+    // First, set random initial positions for the nooverlap algorithm to work with
+    graph.nodes().forEach((node) => {
+      graph.setNodeAttribute(node, "x", Math.random() * 800);
+      graph.setNodeAttribute(node, "y", Math.random() * 600);
+    });
+    
+     
+    // Infer settings from graph & assign
+    const settings = graphologyLibrary.layoutForceAtlas2.inferSettings(graph);
+    graphologyLibrary.layoutForceAtlas2.assign(graph, {
+      iterations: 50,
+      settings: settings
+    });
+    
+
+    // Instantiate sigma.js with image node support and render the graph
+    const s = new Sigma(graph, document.getElementById("container"), {
+      nodeProgramClasses: {
+        image: NodeImageProgram,        
+      },
+      renderEdgeLabels: true,
+      edgeLabelSize: 10,
+      edgeLabelColor: { color: '#000000' },
+      labelColor: { attribute: 'labelColor' }
+    });
+
+    // Enable node dragging functionality
+    let isDragging = false;
+    let draggedNode = null;
+
+    // Mouse down event - start dragging
+    s.on("downNode", (e) => {
+      isDragging = true;
+      draggedNode = e.node;
+      
+      // Disable camera controls while dragging
+      s.getCamera().disable();
+    });
+
+    // Mouse move event - update node position while dragging
+    s.getMouseCaptor().on("mousemove", (e) => {
+      if (isDragging && draggedNode) {
+        // Get the mouse position in graph coordinates
+        const pos = s.viewportToGraph(e);
+        
+        // Update the node position
+        graph.setNodeAttribute(draggedNode, "x", pos.x);
+        graph.setNodeAttribute(draggedNode, "y", pos.y);
+        
+        // Prevent default camera behavior
+        e.preventSigmaDefault();
+        e.original.preventDefault();
+        e.original.stopPropagation();
+      }
+    });
+
+    // Mouse up event - stop dragging
+    s.getMouseCaptor().on("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        draggedNode = null;
+        
+        // Re-enable camera controls
+        s.getCamera().enable();
+      }
+    });
+
+    // Handle mouse leave to stop dragging if mouse leaves the container
+    s.getMouseCaptor().on("mouseleave", () => {
+      if (isDragging) {
+        isDragging = false;
+        draggedNode = null;
+        s.getCamera().enable();
+      }
+    });
+  </script>
+</body>
+
+</html>
