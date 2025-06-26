@@ -17,8 +17,13 @@
 </head>
 
 <body style="background: lightgrey">
+  <!-- Toggle Button for Filter Controls -->
+  <button id="toggleFilters" style="position: absolute; top: 10px; left: 470px; z-index: 1001; background: #007cba; color: white; border: none; padding: 8px 12px; border-radius: 3px; cursor: pointer; font-family: Arial, sans-serif;">
+    🔍 Ocultar Filtros
+  </button>
+  
   <!-- Filter Controls -->
-  <div style="position: absolute; top: 10px; left: 10px; z-index: 1000; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-family: Arial, sans-serif; max-width: 450px;">
+  <div id="filterPanel" style="position: absolute; top: 10px; left: 10px; z-index: 1000; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-family: Arial, sans-serif; max-width: 450px;">
     <h3 style="margin: 0 0 10px 0;">Filtros</h3>
     
     <div style="margin-bottom: 10px;">
@@ -278,6 +283,21 @@
     const sizeValueSpan = document.getElementById('sizeValue');
     const showNeighborsCheckbox = document.getElementById('showNeighbors');
     const resetButton = document.getElementById('resetFilter');
+    const toggleButton = document.getElementById('toggleFilters');
+    const filterPanel = document.getElementById('filterPanel');
+
+    // Toggle filter panel visibility
+    let filtersVisible = true;
+    toggleButton.addEventListener('click', () => {
+      filtersVisible = !filtersVisible;
+      if (filtersVisible) {
+        filterPanel.style.display = 'block';
+        toggleButton.textContent = '🔍 Ocultar Filtros';
+      } else {
+        filterPanel.style.display = 'none';
+        toggleButton.textContent = '🔍 Mostrar Filtros';
+      }
+    });
 
     // Update size display
     sizeFilterInput.addEventListener('input', (e) => {
