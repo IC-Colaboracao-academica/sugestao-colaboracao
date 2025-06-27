@@ -34,7 +34,7 @@ const nodeList = [
     { name: "Marcelo Cizaurre Guirau", options: {size: 8.0, label: "Marcelo Cizaurre Guirau", color: '#999933', labelColor: '#999933'} },
     { name: "Roberta Caetano Fleira", options: {size: 11.313708498984761, label: "Roberta Caetano Fleira", color: '#339966', labelColor: '#339966'} },
     { name: "Ricardo Normanha Ribeiro de Almeida", options: {size: 8.0, label: "Ricardo Normanha Ribeiro de Almeida", color: '#0033ff', labelColor: '#0033ff'} },
-    { name: "Ana Paula Rodrigues Magalhaes de Barros", options: {size: 16.0, label: "Ana Paula Rodrigues Magalhaes de Barros", color: '#339966', labelColor: '#339966'} }
+    { name: "Ana Paula Rodrigues Magalhães de Barros", options: {size: 16.0, label: "Ana Paula Rodrigues Magalhães de Barros", color: '#339966', labelColor: '#339966'} }
 ];
 
 // Export the nodeList for use in other modules

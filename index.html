@@ -14,6 +14,7 @@
         }
       } 
     </script>
+  <script src="js/publicationsParser.js"></script>
 </head>
 
 <body style="background: lightgrey">
@@ -21,6 +22,7 @@
   <button id="toggleFilters" style="position: absolute; top: 10px; left: 470px; z-index: 1001; background: #007cba; color: white; border: none; padding: 8px 12px; border-radius: 3px; cursor: pointer; font-family: Arial, sans-serif;">
     🔍 Ocultar Filtros
   </button>
+
   
   <!-- Filter Controls -->
   <div id="filterPanel" style="position: absolute; top: 10px; left: 10px; z-index: 1000; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-family: Arial, sans-serif; max-width: 450px;">
@@ -59,8 +61,28 @@
       </label>
     </div>
     
-    <button id="resetFilter" style="background: #007cba; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Reiniciar a visualização</button>
+    <button id="resetFilter" style="background: #007cba; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Reiniciar a visualização</button><br><br>
+    <i>Clique sobre as arestas para visualizar as publicações dos pares de pesquisadores.</i>
   </div>
+  
+  <!-- Publications Dialog Box -->
+  <div id="publicationsDialog" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2000; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 80%; max-height: 80%; overflow: hidden; font-family: Arial, sans-serif;">
+    <div style="padding: 20px; border-bottom: 1px solid #ddd; background: #f5f5f5;">
+      <h3 id="dialogTitle" style="margin: 0; color: #333;">Publicações</h3>
+      <button id="closeDialog" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+    </div>
+    <div id="dialogContent" style="padding: 20px; max-height: 500px; overflow-y: auto;">
+      <div id="collaborationInfo" style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-radius: 5px;">
+        <strong>Pesquisadores:</strong> <span id="authorNames"></span><br>
+        <strong>Termos de busca:</strong> <span id="searchTerms"></span><br><br>
+        <i>As publicações foram selecionadas a partir da coocorrência e frequência de termos nos títulos dos trabalhos dos pesquisadores.</i>
+      </div>
+      <div id="publicationsList"></div>
+    </div>
+  </div>
+  
+  <!-- Dialog Background Overlay -->
+  <div id="dialogOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1999;"></div>
   
   <div id="container" style="width: 100%; height: 1200px; background: white"></div>
   <script type="module">
@@ -121,7 +143,10 @@
       renderEdgeLabels: true,
       edgeLabelSize: 14,
       edgeLabelColor: { color: '#000000' },
-      labelColor: { attribute: 'labelColor' }
+      labelColor: { attribute: 'labelColor' },
+      // Enable edge interactions explicitly
+      enableEdgeEvents: true,
+      allowInvalidContainer: true
     });
 
     // Enable node dragging functionality
@@ -335,20 +360,218 @@
     });
 
     // Add some helpful keyboard shortcuts
+    // === PUBLICATIONS DATA AND DIALOG HANDLING ===
+    
+    // Global variable to store publications data
+    let publicationsData = [];
+    
+    // Load publications data
+    async function loadPublicationsData() {
+      try {
+        const response = await fetch('files/publicacoesPorMembro_.csv');
+        const csvContent = await response.text();
+        publicationsData = parsePublicationsCSV(csvContent);
+        console.log("Publications data loaded:", publicationsData.length, "publications");
+      } catch (error) {
+        console.error("Error loading publications data:", error);
+      }
+    }
+    
+    // Initialize publications data
+    loadPublicationsData();
+    
+    // Dialog handling functions
+    function showPublicationsDialog(authorNames, searchTerms, filteredPublications) {
+      const dialog = document.getElementById('publicationsDialog');
+      const overlay = document.getElementById('dialogOverlay');
+      const authorNamesSpan = document.getElementById('authorNames');
+      const searchTermsSpan = document.getElementById('searchTerms');
+      const publicationsList = document.getElementById('publicationsList');
+      
+      // Set collaboration info
+      authorNamesSpan.textContent = authorNames.join(' & ');
+      searchTermsSpan.textContent = searchTerms.length > 0 ? searchTerms.join(', ') : 'Nenhum termo específico';
+      
+      // Generate publications list HTML
+      if (filteredPublications.length === 0) {
+        publicationsList.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">Nenhuma publicação encontrada para esta colaboração.</p>';
+      } else {
+        let html = `<p><strong>Encontradas ${filteredPublications.length} publicações:</strong></p><ul style="list-style-type: none; padding: 0;">`;
+        
+        filteredPublications.forEach((pub, index) => {
+          html += `
+            <li style="margin-bottom: 15px; padding: 10px; border-left: 3px solid #007cba; background: #f9f9f9;">
+              <strong style="color: #007cba;">[${pub.type}]</strong> ${pub.title}<br>
+              <small style="color: #666;"><strong>Autor:</strong> ${pub.author} | <strong>Ano:</strong> ${pub.year}</small>
+            </li>
+          `;
+        });
+        
+        html += '</ul>';
+        publicationsList.innerHTML = html;
+      }
+      
+      // Show dialog
+      overlay.style.display = 'block';
+      dialog.style.display = 'block';
+    }
+    
+    function hidePublicationsDialog() {
+      const dialog = document.getElementById('publicationsDialog');
+      const overlay = document.getElementById('dialogOverlay');
+      
+      overlay.style.display = 'none';
+      dialog.style.display = 'none';
+    }
+    
+    // Add dialog close event listeners
+    document.getElementById('closeDialog').addEventListener('click', hidePublicationsDialog);
+    document.getElementById('dialogOverlay').addEventListener('click', hidePublicationsDialog);
+    
+    // Close dialog with Escape key
     document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hidePublicationsDialog();
+        // Don't clear name filter if dialog is open
+        if (document.getElementById('publicationsDialog').style.display === 'none') {
+          nameFilterInput.value = '';
+          handleFilterChange();
+        }
+      }
       // Press 'R' to reset filters
       if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.altKey) {
         if (document.activeElement !== nameFilterInput) {
           resetButton.click();
         }
       }
-      // Press 'Escape' to clear name filter
-      if (e.key === 'Escape') {
-        nameFilterInput.value = '';
-        handleFilterChange();
+    });
+
+    // === EDGE CLICK DETECTION AND PUBLICATION FILTERING ===
+    
+    // Function to handle edge click and filter publications
+    function handleEdgeClick(edgeId) {
+      if (publicationsData.length === 0) {
+        alert("Dados de publicações ainda não foram carregados. Tente novamente em alguns segundos.");
+        return;
+      }
+      
+      const edgeAttr = graph.getEdgeAttributes(edgeId);
+      const source = graph.source(edgeId);
+      const target = graph.target(edgeId);
+      const label = edgeAttr.label || '';
+      
+      console.log("Processing edge click:", {
+        edge: edgeId,
+        source: source,
+        target: target,
+        label: label
+      });
+      
+      // Prepare author names and search terms
+      const authorNames = [source, target];
+      const titleTerms = label.trim() ? label.split(/[,\s]+/).filter(term => term.length > 2) : [];
+      
+      console.log("Filtering publications with:", {
+        authorNames: authorNames,
+        titleTerms: titleTerms
+      });
+      
+      // Filter publications using the parser function
+      const filteredPublications = filterPublicationsByMultipleAuthorsAndTerms(
+        publicationsData,
+        authorNames,
+        titleTerms,
+        {
+          authorLogic: 'OR',  // Find publications by either author
+          titleLogic: 'OR',   // Find publications containing any of the terms
+          caseSensitive: false
+        }
+      );
+      
+      console.log("Filtered publications result:", filteredPublications.length, "publications found");
+      
+      // Show the dialog with results
+      showPublicationsDialog(authorNames, titleTerms, filteredPublications);
+    }
+    
+    // Debug: Check Sigma instance methods and events
+    console.log("Sigma instance methods:", Object.getOwnPropertyNames(s));
+    console.log("Sigma instance events:", s.getListeners ? s.getListeners() : "getListeners not available");
+    
+    // Try multiple approaches to detect edge clicks
+    
+    // Approach 1: Try clickEdge event
+    try {
+      s.on("clickEdge", (event) => {
+        console.log("clickEdge event fired:", event.edge);
+        handleEdgeClick(event.edge);
+      });
+      console.log("clickEdge event listener added successfully");
+    } catch (e) {
+      console.log("clickEdge event not supported:", e.message);
+    }
+    
+    // Approach 2: Try enterEdge/leaveEdge for hover detection
+    try {
+      let hoveredEdge = null;
+      
+      s.on("enterEdge", (event) => {
+        hoveredEdge = event.edge;
+        console.log("enterEdge event fired:", event.edge);
+        document.body.style.cursor = 'pointer';
+      });
+      
+      s.on("leaveEdge", (event) => {
+        hoveredEdge = null;
+        console.log("leaveEdge event fired:", event.edge);
+        document.body.style.cursor = 'default';
+      });
+      
+      // Click when hovering over edge
+      s.on("clickStage", (event) => {
+        if (hoveredEdge && !isDragging) {
+          console.log("Clicked while hovering edge:", hoveredEdge);
+          handleEdgeClick(hoveredEdge);
+          event.preventSigmaDefault();
+        }
+      });
+      
+      console.log("enterEdge/leaveEdge event listeners added successfully");
+    } catch (e) {
+      console.log("enterEdge/leaveEdge events not supported:", e.message);
+    }
+    
+    // Approach 3: Try alternative event names
+    const edgeEventNames = ['edgeClick', 'edge-click', 'click-edge', 'overEdge', 'outEdge'];
+    edgeEventNames.forEach(eventName => {
+      try {
+        s.on(eventName, (event) => {
+          console.log(`${eventName} event fired:`, event);
+          if (event.edge) {
+            handleEdgeClick(event.edge);
+          }
+        });
+        console.log(`${eventName} event listener added`);
+      } catch (e) {
+        // Silently fail for unsupported events
       }
     });
-  </script>
+    
+    // Approach 4: Check if edges need to be manually made interactive
+    console.log("Setting all edges as interactive...");
+    graph.forEachEdge((edgeId) => {
+      try {
+        graph.setEdgeAttribute(edgeId, 'interactive', true);
+        graph.setEdgeAttribute(edgeId, 'hoverable', true);
+        graph.setEdgeAttribute(edgeId, 'clickable', true);
+      } catch (e) {
+        // These properties might not exist
+      }
+    });
+    
+    console.log("Available Sigma events:", Object.getOwnPropertyNames(s.__proto__));
+    
+    </script>
 </body>
 
 </html>

@@ -74,11 +74,16 @@ function createEdge(graph, source, target, options = {}) {
         type: 'line',
         weight: 1.0,
         label: '',
-        size: 1,
+        size: 3, // Increased default size to make edges more clickable
         color: '#999999'
     };
     
     const config = { ...defaults, ...options };
+    
+    // Ensure minimum size for clickability
+    if (config.size < 2) {
+        config.size = 2;
+    }
     
     graph.addEdge(source, target, config);
 }
